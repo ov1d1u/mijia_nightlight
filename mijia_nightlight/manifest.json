@@ -1,0 +1,18 @@
+{
+  "domain": "mijia_nightlight",
+  "name": "Xiaomi Motion Activated Night Light 2",
+  "codeowners": [
+    "@ov1d1u"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/mijia_nightlight",
+  "homekit": {},
+  "iot_class": "local_polling",
+  "requirements": [
+    "bleak==0.22.2",
+    "pycryptodome==3.20.0"
+  ],
+  "ssdp": [],
+  "zeroconf": []
+}
