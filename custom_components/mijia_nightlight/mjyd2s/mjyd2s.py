@@ -10,6 +10,7 @@ from bleak.exc import BleakDeviceNotFoundError
 
 from .mjyd2sconfiguration import MJYD2SConfiguration
 from .eventbus import EventBus
+from .exc import AuthenticationError, ResponseError
 from ..const import (
     DEVICE_CONNECTED_EVENT,
     DEVICE_DISCONNECTED_EVENT,
@@ -21,8 +22,10 @@ LOGGER = logging.getLogger(__name__)
 CHAR_10_UUID = "00000010-0000-1000-8000-00805f9b34fb"
 CHAR_19_UUID = "00000019-0000-1000-8000-00805f9b34fb"
 
-CHAR_TX_UUID = "00000101-0065-6C62-2E74-6F696D2E696D"
-CHAR_RX_UUID = "00000102-0065-6C62-2E74-6F696D2E696D"
+CHAR_TX_UUID = "00000101-0065-6c62-2e74-6f696d2e696d"
+CHAR_RX_UUID = "00000102-0065-6c62-2e74-6f696d2e696d"
+
+CONFIG_MSG_HEX = "06010102030408"
 
 DISCOVERY_TIMEOUT = 30.0
 REPLY_TIMEOUT = 5.0
@@ -47,7 +50,6 @@ class MJYD2S:
         self.hass = hass
         self.mac = mac
         self.mi_token = mi_token
-
         self.prepare_for_reuse()
 
     @property
@@ -64,10 +66,7 @@ class MJYD2S:
         self.mi_random_key_recv = None
         self.derived_key = None
         self._msg_count = 0
-    
-    async def _notification_handler(self, sender, data):
-        print(f"<< {data.hex()}")
-        self._queue_in.put_nowait(data)
+        self._clear_in_queue()
     
     async def connect(self) -> bool:
         async with self._connect_lock:
@@ -78,6 +77,7 @@ class MJYD2S:
             if not device:
                 return False
 
+            self.prepare_for_reuse()
             self.client = BleakClient(device)
             try:
                 await self.client.connect()
@@ -92,12 +92,15 @@ class MJYD2S:
             return True
 
     async def connect_if_needed(self):
+        if self.is_connected and self.is_authenticated:
+            return
+
         if not self._queue_out.empty():
-            print("Connecting because queue is not empty")
+            LOGGER.debug("Connecting because queue is not empty")
         if self._configuration is None:
-            print("Connecting because configuration is None")
+            LOGGER.debug("Connecting because configuration is None")
         elif self._configuration.is_expired:
-            print("Connecting because configuration is expired")
+            LOGGER.debug("Connecting because configuration is expired")
 
         if not self._queue_out.empty() or \
             self._configuration is None or \
@@ -115,18 +118,13 @@ class MJYD2S:
         
         await self.client.disconnect()
         self.eventbus.send(DEVICE_DISCONNECTED_EVENT)
-
-        self.prepare_for_reuse()
-
-        while not self._queue_in.empty():
-            await self._queue_in.get()
     
     async def delayed_disconnect(self):
         try:
             await asyncio.sleep(DISCONNECT_DELAY)
             await self.disconnect()
             self._disconnect_task = None
-            print("-- Disconnected")
+            LOGGER.debug(f"Disconnected from {self.mac}")
         except asyncio.CancelledError:
             pass
     
@@ -142,11 +140,11 @@ class MJYD2S:
             await self.client.start_notify(CHAR_10_UUID, self._notification_handler)
 
             await self._write(CHAR_10_UUID, bytes.fromhex("a4"))
-            response = await self._get_response(decrypt=False)
+            response = await self._get_response()
             self._assert_response(bytes.fromhex("0000040006f2"), response)
                 
             await self._write(CHAR_19_UUID, bytes.fromhex("0000050006f2"))
-            mtu_response = await self._get_response(decrypt=False)
+            mtu_response = await self._get_response()
             mtu_response[2] = mtu_response[2] + 1
             await self._write(CHAR_19_UUID, mtu_response)
             
@@ -156,14 +154,14 @@ class MJYD2S:
             
             await self._write(CHAR_10_UUID, bytes.fromhex("24000000"))
             await self._write(CHAR_19_UUID, bytes.fromhex("0000000b0100"))
-            response = await self._get_response(decrypt=False)
+            response = await self._get_response()
             self._assert_response(bytes.fromhex("00000101"), response)
                 
             await self._write(CHAR_19_UUID, bytes.fromhex("0100") + self.mi_random_key)
-            response = await self._get_response(decrypt=False)
+            response = await self._get_response()
             self._assert_response(bytes.fromhex("00000100"), response)
             
-            key_msg = await self._get_response(decrypt=False)
+            key_msg = await self._get_response()
             self.mi_random_key_recv = key_msg[4:]
             
             self.derived_key = self._hkdf(
@@ -174,7 +172,7 @@ class MJYD2S:
             )
             
             await self._write(CHAR_19_UUID, bytes.fromhex("00000300"))
-            response = await self._get_response(decrypt=False)
+            response = await self._get_response()
             mi_device_info_recv = response[4:]
             
             expected_mi_device_info = hmac.new(
@@ -184,12 +182,12 @@ class MJYD2S:
             ).digest()
             
             if mi_device_info_recv != expected_mi_device_info:
-                raise Exception(f"Fatal error: device info mismatch.")
+                raise AuthenticationError(f"Fatal error: device info mismatch.")
             
             await self._write(CHAR_19_UUID, bytes.fromhex("00000300"))
             await self._write(CHAR_19_UUID, bytes.fromhex("0000000a0100"))
             
-            response = await self._get_response(decrypt=False)
+            response = await self._get_response()
             self._assert_response(bytes.fromhex("00000101"), response)
             
             mi_device_info_send = hmac.new(
@@ -199,10 +197,10 @@ class MJYD2S:
             ).digest()
             await self._write(CHAR_19_UUID, bytes.fromhex("0100") + mi_device_info_send)
             
-            response = await self._get_response(decrypt=False)
+            response = await self._get_response()
             self._assert_response(bytes.fromhex("00000100"), response)
 
-            response = await self._get_response(decrypt=False)
+            response = await self._get_response()
             self._assert_response(bytes.fromhex("21000000"), response)
                 
             await self.client.stop_notify(CHAR_19_UUID)
@@ -215,19 +213,12 @@ class MJYD2S:
     
     async def get_configuration(self) -> MJYD2SConfiguration | None:
         await self._ensure_authenticated()
-        
-        await self._send_message(bytes.fromhex("06010102030408"))
-        response = await self._get_response()
-        if response:
-            self.configuration = MJYD2SConfiguration(response)
-            return self.configuration
-        return None
+        await self._send_message(bytes.fromhex(CONFIG_MSG_HEX))
     
     async def turn_on(self, refresh_configuration: bool = True):
         await self._ensure_authenticated()
         
         await self._send_message(bytes.fromhex("03020301"))
-        await self._get_response()
         if refresh_configuration:
             await self.get_configuration()
     
@@ -235,7 +226,6 @@ class MJYD2S:
         await self._ensure_authenticated()
         
         await self._send_message(bytes.fromhex("03020300"))
-        await self._get_response()
         if refresh_configuration:
             await self.get_configuration()
     
@@ -243,7 +233,6 @@ class MJYD2S:
         await self._ensure_authenticated()
         
         await self._send_message(bytes.fromhex(f"030202{brightness:02x}"))
-        await self._get_response()
         if refresh_configuration:
             await self.get_configuration()
             
@@ -251,7 +240,6 @@ class MJYD2S:
         await self._ensure_authenticated()
         
         await self._send_message(bytes.fromhex(f"030204{timeout:02x}"))
-        await self._get_response()
         if refresh_configuration:
             await self.get_configuration()
             
@@ -259,7 +247,6 @@ class MJYD2S:
         await self._ensure_authenticated()
         
         await self._send_message(bytes.fromhex(f"030208{limit:02x}"))
-        await self._get_response()
         if refresh_configuration:
             await self.get_configuration()
 
@@ -268,9 +255,9 @@ class MJYD2S:
             return
 
         while not self._queue_out.empty():
-            print(f"-- processing queue, {self._queue_out.qsize()} msg left:")
+            LOGGER.debug(f"Processing queue for {self.mac}, {self._queue_out.qsize()} messages left")
             msg = self._queue_out.get_nowait()
-            print(" - sending pending message:", msg.hex())
+            LOGGER.debug("Sending pending message:", msg.hex())
             await self._write_message(msg)
     
     @property
@@ -293,14 +280,15 @@ class MJYD2S:
         
     def _assert_response(self, expected, response):
         if response != expected:
-            raise Exception(f"Invalid response received; received {response.hex()}, expected {expected.hex()}")
+            raise ResponseError(f"Invalid response received; received {response.hex()}, expected {expected.hex()}")
             
     async def _send_message(self, msg):
         if self.client and self.is_connected:
             await self._write_message(msg)
         else:
-            print("-- not connected, putting msg into out queue")
-            self._queue_out.put_nowait(msg)
+            if msg != CONFIG_MSG_HEX:  # Config is alway retrieved on connect
+                LOGGER.debug(f"{self.mac} not connected, putting {msg.hex()} into out queue")
+                self._queue_out.put_nowait(msg)
 
     async def _write_message(self, msg):
         hex_msg_count = self._msg_count.to_bytes(2, byteorder='little').hex()
@@ -313,19 +301,36 @@ class MJYD2S:
         loop = asyncio.get_running_loop()
         self._disconnect_task = loop.create_task(self.delayed_disconnect())
         
-    async def _get_response(self, decrypt: bool = True) -> bytes | None:
+    async def _get_response(self) -> bytes | None:
         if self.client and self.is_connected:
             response = await asyncio.wait_for(self._queue_in.get(), timeout=REPLY_TIMEOUT)
-            if decrypt:
-                self._msg_count = int.from_bytes(response[0:2], byteorder='little')
-                return self._decrypt_message(response)
-            else:
-                return response
+            return response
         return None
                     
     async def _write(self, charac, data):
-        print(f">> {data.hex()}")
+        LOGGER.debug(f">> {data.hex()}")
         return await self.client.write_gatt_char(charac, data)
+    
+    def _clear_in_queue(self):
+        while not self._queue_in.empty():
+            self._queue_in.get_nowait()
+
+    def _clear_out_queue(self):
+        while not self._queue_out.empty():
+            self._queue_in.get_nowait()
+
+    async def _notification_handler(self, sender, data):
+        if sender.uuid.lower() == CHAR_19_UUID.lower() or \
+            sender.uuid.lower() == CHAR_10_UUID.lower():
+            LOGGER.debug(f"<< {data.hex()}")
+            self._queue_in.put_nowait(data)
+        elif sender.uuid.lower() == CHAR_RX_UUID.lower():
+            msg_count = int.from_bytes(data[0:2], byteorder='little')
+            in_message = self._decrypt_message(msg_count, data)
+            LOGGER.debug("<< ", in_message.hex())
+            if in_message[0:2] == bytes.fromhex("0703"):
+                self.configuration = MJYD2SConfiguration(in_message)
+                return self.configuration
 
     def _hkdf_extract(self, salt, input_key, hash_func):
         return hmac.new(salt, input_key, hash_func).digest()
@@ -345,7 +350,6 @@ class MJYD2S:
         return self._hkdf_expand(prk, info, length, hash_func)
 
     def _encrypt_message(self, msg):
-        LOGGER.debug(f"xx {msg.hex()}")
         nonce = self._compute_enc_nonce()
         cipher = AES.new(
             self.derived_key[16:32],
@@ -356,8 +360,8 @@ class MJYD2S:
         ciphertext, tag = cipher.encrypt_and_digest(msg)
         return ciphertext + tag
     
-    def _decrypt_message(self, msg):
-        nonce = self._compute_dec_nonce()
+    def _decrypt_message(self, msg_count, msg):
+        nonce = self._compute_dec_nonce(msg_count)
         cipher = AES.new(
             self.derived_key[0:16],
             AES.MODE_CCM,
@@ -371,11 +375,14 @@ class MJYD2S:
     def _compute_enc_nonce(self):
         nonce = 12 * [0]
         nonce[:4] = self.derived_key[36:40]
-        nonce[8:12] = [self._msg_count, 0, 0, 0]
+        nonce[8: 10] = self._msg_count.to_bytes(2, byteorder='little')
+        nonce[10:12] = [0, 0]
         return bytes(nonce)
     
-    def _compute_dec_nonce(self):
+    def _compute_dec_nonce(self, msg_count):
         nonce = 12 * [0]
         nonce[:4] = self.derived_key[32:36]
-        nonce[8:12] = [self._msg_count, 0, 0, 0]
+        nonce[8:10] = msg_count.to_bytes(2, byteorder='little')
+        nonce[10:12] = [0, 0]
         return bytes(nonce)
+

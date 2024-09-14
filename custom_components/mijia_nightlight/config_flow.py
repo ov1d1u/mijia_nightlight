@@ -10,6 +10,7 @@ from homeassistant.components.bluetooth import (
 )
 from homeassistant.helpers.device_registry import format_mac
 from .mjyd2s import MJYD2S
+from .mjyd2s.exc import AuthenticationError
 from .mjyd2sdevicedata import MJYD2SDeviceData
 from .const import DOMAIN, CONF_MI_TOKEN
 
@@ -94,7 +95,7 @@ class MijiaNighlightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             errors={})
 
-    async def async_step_token(self, user_input: "dict[str, Any] | None" = None):        
+    async def async_step_token(self, user_input: "dict[str, Any] | None" = None, errors: dict[str, str] | None = None):
         if user_input is not None:
             self.mi_token = user_input[CONF_MI_TOKEN]
             return await self.async_step_validate()
@@ -104,32 +105,30 @@ class MijiaNighlightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_MI_TOKEN): str
                 }
-            ), errors={})
+            ), errors=errors)
     
     async def async_step_validate(self, user_input: "dict[str, Any] | None" = None):
-        if user_input is not None:
-            return self.async_create_entry(title=self.name, data={CONF_MAC: self.mac, "name": self.name})
-        
+        mjyd2s = MJYD2S(self.hass, self.mac, self.mi_token)
         try:
-            error = await self.validate_device()
+            error = await self.validate_device(mjyd2s)
+        except ValueError as e:
+            error = "Invalid token. Make sure you used only hexadecimal characters"
+        except AuthenticationError as e:
+            error = "Authentication error. Make sure you entered the correct mi token"
         except Exception as e:
             error = str(e)
+        finally:
+            await mjyd2s.disconnect()
 
         if error:
-            return self.async_show_form(
-                step_id="validate", data_schema=vol.Schema(
-                    {
-                        vol.Required("retry"): bool
-                    }
-                ), errors={"base": error})
+            return await self.async_step_token(errors={"base": error})
 
         return self.async_create_entry(title=self.name, data={CONF_MAC: self.mac, CONF_MI_TOKEN: self.mi_token, "name": self.name})
     
-    async def validate_device(self):
-        mijia = MJYD2S(self.hass, self.mac, self.mi_token)
-        assert await mijia.connect()
-        assert await mijia.authenticate()
-        await mijia.get_configuration()
-        await mijia.disconnect()
+    async def validate_device(self, mjyd2s):
+        assert await mjyd2s.connect()
+        assert await mjyd2s.authenticate()
+        await mjyd2s.get_configuration()
+        await mjyd2s.disconnect()
 
         return None

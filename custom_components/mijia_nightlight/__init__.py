@@ -31,7 +31,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     @callback
     def _async_discovered_device(service_info: bluetooth.BluetoothServiceInfoBleak, change: bluetooth.BluetoothChange) -> None:
         """Subscribe to bluetooth changes."""
-        LOGGER.warning("New service_info: %s", service_info)
+        LOGGER.debug("New service_info: %s", service_info)
         hass.loop.create_task(_connect_and_process_queue())
 
     entry.async_on_unload(

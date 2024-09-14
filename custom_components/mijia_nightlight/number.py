@@ -24,10 +24,12 @@ class MJYD2SNumber(NumberEntity):
             self._attr_native_max_value = 100
             self._attr_native_step = 1
             self._attr_native_unit_of_measurement = PERCENTAGE
+            self._attr_icon = "mdi:brightness-percent"
         elif kind == NUMBER_KIND_DURATION:
             self._attr_native_min_value = 15
             self._attr_native_max_value = 60
             self._attr_native_step = 1
+            self._attr_icon = "mdi:timer-outline"
             self._attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
         instance.eventbus.add_listener(DEVICE_UPDATED_EVENT, self.config_updated)

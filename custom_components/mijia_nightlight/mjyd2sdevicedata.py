@@ -1,6 +1,7 @@
+import logging
 from homeassistant.components.bluetooth import async_ble_device_from_address
 
-import logging
+XIAOMI_INC = "0000fe95-0000-1000-8000-00805f9b34fb"
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ class MJYD2SDeviceData():
 
     @property
     def is_supported(self):
-        data = self._discovery.manufacturer_data
-        if data[2] + (data[3] << 8) == 0x07F6:
-            return True
+        data = self._discovery.service_data.get(XIAOMI_INC) 
+        if data and len(data) >= 4:
+            if data[2] + (data[3] << 8) == 0x07F6:
+                return True
         return False

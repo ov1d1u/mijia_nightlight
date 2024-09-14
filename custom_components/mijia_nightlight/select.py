@@ -12,6 +12,7 @@ class MJYD2SSelect(SelectEntity):
         self._attr_assumed_state = True
         self._attr_name = f"{config_entry.data["name"]} Ambient Light Sensor Limit"
         self._attr_unique_id = f"{config_entry.entry_id}_ambient_limit"
+        self._attr_icon = "mdi:sun-wireless"
         self._attr_current_option = None
         self._attr_translation_key = "ambient_light"
         self._attr_options = [

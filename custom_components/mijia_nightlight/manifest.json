@@ -1,5 +1,5 @@
 {
-  "domain": "xiaomi_ble",
+  "domain": "mijia_nightlight",
   "name": "Xiaomi Motion Activated Night Light 2",
   "codeowners": [
     "@ov1d1u"
