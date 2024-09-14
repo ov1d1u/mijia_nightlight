@@ -1,11 +1,11 @@
 {
-  "domain": "mijia_nightlight",
+  "domain": "xiaomi_ble",
   "name": "Xiaomi Motion Activated Night Light 2",
   "codeowners": [
     "@ov1d1u"
   ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["bluetooth_adapters"],
   "documentation": "https://www.home-assistant.io/integrations/mijia_nightlight",
   "homekit": {},
   "iot_class": "local_polling",

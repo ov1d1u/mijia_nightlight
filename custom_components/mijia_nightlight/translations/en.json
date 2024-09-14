@@ -1,0 +1,45 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Prepare device for connection",
+                "description": "To trigger device discovery, please walk into the detectable field of the device."
+            },
+            "scan_results": {
+                "title": "Select your Xiaomi Motion Activated Night Light 2",
+                "description": "Select your device or, if not discovered, insert its MAC address manually.",
+                "data": {
+                    "mac": "MAC address"
+                }
+            },
+            "manual_mac": {
+                "title": "Manually provide Bluetooth MAC address",
+                "description": "Enter the Bluetooth MAC address of the device and its Xiaomi Mi Token",
+                "data": {
+                    "mac": "Bluetooth MAC address",
+                    "mi_token": "Xiaomi Mi device token"
+                }
+            },
+            "token": {
+                "title": "Provide Xiaomi Mi Token",
+                "description": "Enter your Xiaomi Mi device token",
+                "data": {
+                    "mi_token": "Xiaomi Mi device token"
+                }
+            }
+        }
+    },
+    "entity": {
+        "select": {
+            "ambient_light": {
+                "state": {
+                    "pitch_black": "Pitch Black",
+                    "dark": "Dark",
+                    "dim": "Dim",
+                    "slightly_lit": "Slightly lit",
+                    "bright": "Bright"
+                }
+            }
+        }
+    }
+}
