@@ -7,12 +7,11 @@
   "config_flow": true,
   "dependencies": ["bluetooth_adapters"],
   "documentation": "https://www.home-assistant.io/integrations/mijia_nightlight",
-  "homekit": {},
   "iot_class": "local_polling",
   "requirements": [
+    "async-timeout==4.0.3",
     "bleak==0.22.2",
     "pycryptodome==3.20.0"
   ],
-  "ssdp": [],
-  "zeroconf": []
+  "version": "0.0.3"
 }
