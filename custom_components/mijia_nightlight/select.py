@@ -1,5 +1,10 @@
 from homeassistant.components.select import SelectEntity
-from .const import DOMAIN, DEVICE_UPDATED_EVENT
+from .const import (
+    DOMAIN,
+    CONF_PERSIST_STATE,
+    DEVICE_UPDATED_EVENT,
+    DEVICE_DISCONNECTED_EVENT
+)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     instance = hass.data[DOMAIN][config_entry.entry_id]
@@ -23,12 +28,15 @@ class MJYD2SSelect(SelectEntity):
             "bright"
         ]
 
+        self.persist_state = config_entry.data[CONF_PERSIST_STATE]
+
         instance.eventbus.add_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        instance.eventbus.add_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
 
     @property
     def name(self):
         return self._attr_name
-    
+
     async def async_select_option(self, option: str) -> None:
         if option == "pitch_black":
             await self._instance.set_ambient_limit(0)
@@ -40,7 +48,7 @@ class MJYD2SSelect(SelectEntity):
             await self._instance.set_ambient_limit(75)
         elif option == "bright":
             await self._instance.set_ambient_limit(100)
-        
+
         self._attr_current_option = option
         self.async_write_ha_state()
 
@@ -56,6 +64,14 @@ class MJYD2SSelect(SelectEntity):
         elif configuration.ambient_limit >= 100:
             self._attr_current_option = "bright"
         self.async_write_ha_state()
-    
+
+    async def device_disconnected(self, device):
+        if self.persist_state:
+            return
+
+        self._attr_current_option = None
+        self.async_write_ha_state()
+
     def __del__(self):
         self._instance.eventbus.remove_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)

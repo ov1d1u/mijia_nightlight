@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-CONFIGURATION_VALIDITY_TIME = timedelta(minutes=1)
+CONFIGURATION_VALIDITY_TIME = timedelta(minutes=30)
 
 class MJYD2SConfiguration:
     def __init__(self, configuration_bytes):

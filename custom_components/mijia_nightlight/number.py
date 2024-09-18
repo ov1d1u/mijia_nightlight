@@ -1,6 +1,11 @@
 from homeassistant.components.number import NumberEntity
 from homeassistant.const import UnitOfTime, PERCENTAGE
-from .const import DOMAIN, DEVICE_UPDATED_EVENT
+from .const import (
+    DOMAIN,
+    CONF_PERSIST_STATE,
+    DEVICE_UPDATED_EVENT,
+    DEVICE_DISCONNECTED_EVENT
+)
 
 NUMBER_KIND_BRIGHTNESS = "brightness"
 NUMBER_KIND_DURATION = "duration"
@@ -18,7 +23,8 @@ class MJYD2SNumber(NumberEntity):
         self._kind = kind
         self._attr_name = f"{config_entry.data["name"]} {kind.title()}"
         self._attr_unique_id = f"{config_entry.entry_id}_{kind}"
-        
+        self.persist_state = config_entry.data[CONF_PERSIST_STATE]
+
         if kind == NUMBER_KIND_BRIGHTNESS:
             self._attr_native_min_value = 1
             self._attr_native_max_value = 100
@@ -33,6 +39,7 @@ class MJYD2SNumber(NumberEntity):
             self._attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
         instance.eventbus.add_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        instance.eventbus.add_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
 
     @property
     def name(self):
@@ -45,8 +52,15 @@ class MJYD2SNumber(NumberEntity):
             await self._instance.set_brightness(value)
         elif self._kind == NUMBER_KIND_DURATION:
             await self._instance.set_duration(value)
-        
+
         self._attr_native_value = value
+        self.async_write_ha_state()
+
+    async def device_disconnected(self, device):
+        if self.persist_state:
+            return
+
+        self._attr_native_value = None
         self.async_write_ha_state()
 
     async def config_updated(self, configuration):
@@ -55,6 +69,7 @@ class MJYD2SNumber(NumberEntity):
         elif self._kind == NUMBER_KIND_DURATION:
             self._attr_native_value = configuration.duration
         self.async_write_ha_state()
-    
+
     def __del__(self):
         self._instance.eventbus.remove_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)

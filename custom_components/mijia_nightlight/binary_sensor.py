@@ -20,7 +20,7 @@ class MJYD2SBinarySensor(BinarySensorEntity):
     @property
     def name(self):
         return self._attr_name
-    
+
     @property
     def is_on(self):
         return self._attr_is_on

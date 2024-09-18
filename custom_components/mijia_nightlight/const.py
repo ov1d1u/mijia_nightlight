@@ -2,6 +2,7 @@
 
 DOMAIN = "mijia_nightlight"
 CONF_MI_TOKEN = "mi_token"
+CONF_PERSIST_STATE = "persist_state"
 DEVICE_CONNECTED_EVENT = "mijia_nightlight_device_connected"
 DEVICE_DISCONNECTED_EVENT = "mijia_nightlight_device_disconnected"
 DEVICE_UPDATED_EVENT = "mijia_nightlight_update_device"

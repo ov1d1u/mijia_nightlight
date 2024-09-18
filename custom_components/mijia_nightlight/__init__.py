@@ -10,7 +10,7 @@ from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth.match import ADDRESS, BluetoothCallbackMatcher
 
 from .mjyd2s import MJYD2S
-from .const import DOMAIN, CONF_MI_TOKEN
+from .const import DOMAIN, CONF_MI_TOKEN, CONF_PERSIST_STATE
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,8 +21,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     mac = entry.options.get(CONF_MAC, None) or entry.data.get(CONF_MAC, None)
     mi_token = entry.options.get(CONF_MI_TOKEN, None) or entry.data.get(CONF_MI_TOKEN, None)
-    
-    instance = MJYD2S(hass, mac, mi_token)
+    persist_state = entry.options.get(CONF_PERSIST_STATE, False) or entry.data.get(CONF_PERSIST_STATE, False)
+
+    instance = MJYD2S(hass, mac, mi_token, persist_state)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = instance
 
     async def _connect_and_process_queue():
