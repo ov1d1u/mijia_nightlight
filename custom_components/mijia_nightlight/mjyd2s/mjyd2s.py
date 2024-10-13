@@ -56,7 +56,7 @@ class MJYD2S:
         self.mac = mac
         self.mi_token = mi_token
         self.use_out_queue = use_out_queue
-        self.prepare_for_reuse()
+        self.reset()
 
     @property
     def configuration(self):
@@ -67,7 +67,7 @@ class MJYD2S:
         self._configuration = configuration
         self.eventbus.send(DEVICE_UPDATED_EVENT, configuration)
 
-    def prepare_for_reuse(self):
+    def reset(self):
         self.mi_random_key = secrets.token_bytes(16)
         self.mi_random_key_recv = None
         self.derived_key = None
@@ -83,7 +83,7 @@ class MJYD2S:
             if not device:
                 return False
 
-            self.prepare_for_reuse()
+            self.reset()
             self.client = BleakClient(device, disconnected_callback=self._on_disconnect)
             try:
                 await self.client.connect()
@@ -186,7 +186,7 @@ class MJYD2S:
             return True
 
     async def connect_if_needed(self):
-        if self.is_connected and self.is_authenticated:
+        if self.is_connected:
             return
 
         if self._configuration is None:
