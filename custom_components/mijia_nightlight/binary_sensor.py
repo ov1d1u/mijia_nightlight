@@ -12,7 +12,7 @@ class MJYD2SBinarySensor(BinarySensorEntity):
         self._attr_name = f"{config_entry.data["name"]} Connected"
         self._attr_unique_id = f"{config_entry.entry_id}_is_connected"
         self._attr_is_on = False
-        self._attr_icon = "mdi:bluetooth"
+        self._attr_icon = "mdi:bluetooth-off"
 
         instance.eventbus.add_listener(DEVICE_CONNECTED_EVENT, self.device_connected)
         instance.eventbus.add_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
