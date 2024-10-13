@@ -84,7 +84,7 @@ class MJYD2S:
                 return False
 
             self.prepare_for_reuse()
-            self.client = BleakClient(device)
+            self.client = BleakClient(device, disconnected_callback=self._on_disconnect)
             try:
                 await self.client.connect()
             except:
@@ -104,6 +104,8 @@ class MJYD2S:
 
             await self._write(CHAR_19_UUID, bytes.fromhex("0000050006f2"))
             mtu_response = await self._get_response(decrypt=False)
+            if mtu_response is None:
+                raise ResponseError(f"Invalid MTU response received")
             mtu_response[2] = mtu_response[2] + 1
             await asyncio.sleep(1)
             await self._write(CHAR_19_UUID, mtu_response)
@@ -206,29 +208,14 @@ class MJYD2S:
         if not self.is_connected:
             return False
 
-        try:
-            await self.client.stop_notify(CHAR_19_UUID)
-            await self.client.stop_notify(CHAR_10_UUID)
-            await self.client.stop_notify(CHAR_RX_UUID)
-        except:
-            pass
-
         await self.client.disconnect()
-        self.eventbus.send(DEVICE_DISCONNECTED_EVENT)
 
     async def delayed_disconnect(self):
         if not self.client.is_connected:
             return
 
-        try:
-            await asyncio.sleep(DISCONNECT_DELAY)
-            await self.disconnect()
-            if self._disconnect_task:
-                self._disconnect_task.cancel()
-                self._disconnect_task = None
-            LOGGER.debug(f"Disconnected from {self.mac}")
-        except Exception as e:
-            LOGGER.debug(f"Failed to disconnect. Error: {e}")
+        await asyncio.sleep(DISCONNECT_DELAY)
+        await self.disconnect()
 
     async def get_configuration(self) -> MJYD2SConfiguration | None:
         await self._send_message(GetConfigurationMessage())
@@ -274,6 +261,9 @@ class MJYD2S:
             await self.connect()
 
     def _assert_response(self, expected, response):
+        if not response:
+            raise ResponseError("No response received")
+
         if response != expected:
             raise ResponseError(f"Invalid response received; received {response.hex()}, expected {expected.hex()}")
 
@@ -344,6 +334,14 @@ class MJYD2S:
             if in_message[0:2] == bytes.fromhex("0703"):
                 self.configuration = MJYD2SConfiguration(in_message)
                 return self.configuration
+
+    def _on_disconnect(self, client: BleakClient):
+        if self._disconnect_task:
+            self._disconnect_task.cancel()
+            self._disconnect_task = None
+
+        LOGGER.debug(f"Disconnected from {self.mac}")
+        self.eventbus.send(DEVICE_DISCONNECTED_EVENT)
 
     def _hkdf_extract(self, salt, input_key, hash_func):
         return hmac.new(salt, input_key, hash_func).digest()
