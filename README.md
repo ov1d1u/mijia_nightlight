@@ -5,6 +5,8 @@
 
 Mijia Nightlight is a Home Assistant (HA) integration to control the Xiaomi Motion Activated Night Light 2 over Bluetooth Low Energy (BLE). This integration offers functionalities such as turning the light on or off, adjusting brightness, setting the duration, and modifying ambient light levels.
 
+![MJYD02YL](https://github.com/user-attachments/assets/856e7bc6-b203-4538-8ba6-4acc2b562b56)
+
 ⚠️ **Note**: This is the initial release. Please be aware that it may contain bugs and limited features. Contributions and bug reports are welcome!
 
 ## Features
