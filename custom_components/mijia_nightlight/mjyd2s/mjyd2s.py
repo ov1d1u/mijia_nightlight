@@ -7,6 +7,7 @@ from Crypto.Cipher import AES
 from homeassistant.components import bluetooth
 from bleak import BleakClient
 from bleak.exc import BleakDeviceNotFoundError
+from bleak_retry_connector import establish_connection
 
 from .mjyd2sconfiguration import MJYD2SConfiguration
 from .eventbus import EventBus
@@ -79,9 +80,13 @@ class MJYD2S:
                 return False
 
             self.reset()
-            self.client = BleakClient(device, disconnected_callback=self._on_disconnect)
             try:
-                await self.client.connect()
+                self.client = await establish_connection(
+                    BleakClient,
+                    device,
+                    device.name or self.mac,
+                    disconnected_callback=self._on_disconnect,
+                )
             except Exception:
                 return False
 
