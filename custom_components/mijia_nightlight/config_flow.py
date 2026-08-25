@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import voluptuous as vol
 from typing import Any
 from homeassistant import config_entries
@@ -114,12 +115,15 @@ class MijiaNighlightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_validate(self, user_input: "dict[str, Any] | None" = None):
         mjyd2s = MJYD2S(self.hass, self.mac, self.mi_token)
+        error = None
         try:
             error = await self.validate_device(mjyd2s)
-        except ValueError as e:
+        except ValueError:
             error = "Invalid token. Make sure you used only hexadecimal characters"
-        except AuthenticationError as e:
+        except AuthenticationError:
             error = "Authentication error. Make sure you entered the correct mi token"
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             error = str(e)
         finally:
@@ -139,7 +143,8 @@ class MijiaNighlightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def validate_device(self, mjyd2s):
-        assert await mjyd2s.connect()
+        if not await mjyd2s.connect():
+            raise ValueError("Failed to connect")
         await mjyd2s.get_configuration()
         await mjyd2s.disconnect()
 

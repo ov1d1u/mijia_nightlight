@@ -4,23 +4,22 @@ class OutQueue():
     def __init__(self):
         self._queue = asyncio.Queue()
         self._items_by_class = {}
+        self._lock = asyncio.Lock()
 
     async def put(self, item):
-        item_class = type(item)
-        if item_class in self._items_by_class:
-            existing_item = self._items_by_class[item_class]
-            self._queue._queue.remove(existing_item)
-            del self._items_by_class[item_class]
-
-        await self._queue.put(item)
-        self._items_by_class[item_class] = item
+        async with self._lock:
+            self._items_by_class[type(item)] = item
+            await self._queue.put(item)
 
     async def get(self):
-        item = await self._queue.get()
-        item_class = type(item)
-        if item_class in self._items_by_class:
-            del self._items_by_class[item_class]
-        return item
+        while True:
+            item = await self._queue.get()
+            item_class = type(item)
+
+            async with self._lock:
+                if self._items_by_class.get(item_class) is item:
+                    del self._items_by_class[item_class]
+                    return item
 
     def qsize(self):
         return self._queue.qsize()

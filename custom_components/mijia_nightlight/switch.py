@@ -50,6 +50,6 @@ class MJYD2SSwitch(SwitchEntity):
         self._attr_is_on = configuration.is_enabled
         self.async_write_ha_state()
 
-    def __del__(self):
+    async def async_will_remove_from_hass(self):
         self._instance.eventbus.remove_listener(DEVICE_UPDATED_EVENT, self.config_updated)
         self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)

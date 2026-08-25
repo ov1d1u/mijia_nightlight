@@ -1,5 +1,4 @@
 import logging
-from homeassistant.components.bluetooth import async_ble_device_from_address
 
 XIAOMI_INC = "0000fe95-0000-1000-8000-00805f9b34fb"
 
@@ -12,7 +11,6 @@ class MJYD2SDeviceData():
         self._name = self._discovery.name
         self._rssi = self._discovery.rssi
         self._hass = hass
-        self._bledevice = async_ble_device_from_address(hass, self._address)
 
     @property
     def address(self):

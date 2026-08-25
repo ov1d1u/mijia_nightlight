@@ -9,7 +9,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class MJYD2SBinarySensor(BinarySensorEntity):
     def __init__(self, instance, config_entry):
         self._instance = instance
-        self._attr_name = f"{config_entry.data["name"]} Connected"
+        self._attr_name = f"{config_entry.data['name']} Connected"
         self._attr_unique_id = f"{config_entry.entry_id}_is_connected"
         self._attr_is_on = False
         self._attr_icon = "mdi:bluetooth-off"
@@ -35,6 +35,6 @@ class MJYD2SBinarySensor(BinarySensorEntity):
         self._attr_icon = "mdi:bluetooth-off"
         self.async_write_ha_state()
 
-    def __del__(self):
+    async def async_will_remove_from_hass(self):
         self._instance.eventbus.remove_listener(DEVICE_CONNECTED_EVENT, self.device_connected)
         self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)

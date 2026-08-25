@@ -21,7 +21,7 @@ class MJYD2SNumber(NumberEntity):
     def __init__(self, instance, config_entry, kind):
         self._instance = instance
         self._kind = kind
-        self._attr_name = f"{config_entry.data["name"]} {kind.title()}"
+        self._attr_name = f"{config_entry.data['name']} {kind.title()}"
         self._attr_unique_id = f"{config_entry.entry_id}_{kind}"
         self.persist_state = config_entry.data[CONF_PERSIST_STATE]
 
@@ -70,6 +70,6 @@ class MJYD2SNumber(NumberEntity):
             self._attr_native_value = configuration.duration
         self.async_write_ha_state()
 
-    def __del__(self):
+    async def async_will_remove_from_hass(self):
         self._instance.eventbus.remove_listener(DEVICE_UPDATED_EVENT, self.config_updated)
         self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)

@@ -39,23 +39,18 @@ DISCONNECT_DELAY = 60.0
 
 
 class MJYD2S:
-    client = None
-    mac = None
-    hass = None
-
-    eventbus = EventBus()
-
-    _queue_in = asyncio.Queue()
-    _queue_out = OutQueue()
-    _connect_lock = asyncio.Lock()
-    _disconnect_task = None
-    _configuration = None
-
     def __init__(self, hass, mac, mi_token, use_out_queue=False):
         self.hass = hass
         self.mac = mac
         self.mi_token = mi_token
         self.use_out_queue = use_out_queue
+        self.client = None
+        self.eventbus = EventBus()
+        self._queue_in = asyncio.Queue()
+        self._queue_out = OutQueue()
+        self._connect_lock = asyncio.Lock()
+        self._disconnect_task = None
+        self._configuration = None
         self.reset()
 
     @property
@@ -87,7 +82,7 @@ class MJYD2S:
             self.client = BleakClient(device, disconnected_callback=self._on_disconnect)
             try:
                 await self.client.connect()
-            except:
+            except Exception:
                 return False
 
             await asyncio.sleep(2.0)  # give some time for service discovery
@@ -106,6 +101,7 @@ class MJYD2S:
             mtu_response = await self._get_response(decrypt=False)
             if mtu_response is None:
                 raise ResponseError(f"Invalid MTU response received")
+            mtu_response = bytearray(mtu_response)
             mtu_response[2] = mtu_response[2] + 1
             await asyncio.sleep(1)
             await self._write(CHAR_19_UUID, mtu_response)
@@ -125,6 +121,8 @@ class MJYD2S:
             self._assert_response(bytes.fromhex("00000100"), response)
 
             key_msg = await self._get_response(decrypt=False)
+            if key_msg is None:
+                raise ResponseError("Failed to receive device random key")
             self.mi_random_key_recv = key_msg[4:]
 
             self.derived_key = self._hkdf(
@@ -136,6 +134,8 @@ class MJYD2S:
 
             await self._write(CHAR_19_UUID, bytes.fromhex("00000300"))
             response = await self._get_response(decrypt=False)
+            if response is None:
+                raise ResponseError("Failed to receive device info response")
             mi_device_info_recv = response[4:]
 
             expected_mi_device_info = hmac.new(
@@ -329,7 +329,7 @@ class MJYD2S:
             self._queue_in.put_nowait(data)
         elif sender.uuid.lower() == CHAR_RX_UUID.lower():
             msg_count = int.from_bytes(data[0:2], byteorder='little')
-            in_message = self._decrypt_message(msg_count, data)
+            in_message = self._decrypt_message(data, msg_count)
             LOGGER.debug(f"<< {in_message.hex()}")
             if in_message[0:2] == bytes.fromhex("0703"):
                 self.configuration = MJYD2SConfiguration(in_message)
@@ -371,7 +371,10 @@ class MJYD2S:
         ciphertext, tag = cipher.encrypt_and_digest(msg)
         return ciphertext + tag
 
-    def _decrypt_message(self, msg_count, msg):
+    def _decrypt_message(self, msg, msg_count=None):
+        if msg_count is None:
+            msg_count = int.from_bytes(msg[0:2], byteorder='little')
+
         nonce = self._compute_dec_nonce(msg_count)
         cipher = AES.new(
             self.derived_key[0:16],
