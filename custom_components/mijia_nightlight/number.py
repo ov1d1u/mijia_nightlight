@@ -1,5 +1,6 @@
 from homeassistant.components.number import NumberEntity
-from homeassistant.const import UnitOfTime, PERCENTAGE
+from homeassistant.const import UnitOfTime, PERCENTAGE, CONF_MAC
+from homeassistant.helpers.device_registry import DeviceInfo, CONNECTION_BLUETOOTH
 from .const import (
     DOMAIN,
     CONF_PERSIST_STATE,
@@ -23,6 +24,13 @@ class MJYD2SNumber(NumberEntity):
         self._kind = kind
         self._attr_name = f"{config_entry.data['name']} {kind.title()}"
         self._attr_unique_id = f"{config_entry.entry_id}_{kind}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            connections={(CONNECTION_BLUETOOTH, config_entry.data[CONF_MAC])},
+            name=config_entry.data["name"],
+            manufacturer="Xiaomi",
+            model="MJYD2S",
+        )
         self.persist_state = config_entry.data[CONF_PERSIST_STATE]
 
         if kind == NUMBER_KIND_BRIGHTNESS:

@@ -1,4 +1,6 @@
 from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.const import CONF_MAC
+from homeassistant.helpers.device_registry import DeviceInfo, CONNECTION_BLUETOOTH
 from .const import DOMAIN, DEVICE_CONNECTED_EVENT, DEVICE_DISCONNECTED_EVENT
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -13,6 +15,13 @@ class MJYD2SBinarySensor(BinarySensorEntity):
         self._attr_unique_id = f"{config_entry.entry_id}_is_connected"
         self._attr_is_on = False
         self._attr_icon = "mdi:bluetooth-off"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            connections={(CONNECTION_BLUETOOTH, config_entry.data[CONF_MAC])},
+            name=config_entry.data["name"],
+            manufacturer="Xiaomi",
+            model="MJYD2S",
+        )
 
         instance.eventbus.add_listener(DEVICE_CONNECTED_EVENT, self.device_connected)
         instance.eventbus.add_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
