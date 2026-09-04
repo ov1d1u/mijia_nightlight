@@ -3,7 +3,8 @@ from homeassistant.const import CONF_MAC
 from homeassistant.helpers.device_registry import DeviceInfo, CONNECTION_BLUETOOTH
 from .const import (
     DOMAIN,
-    DEVICE_UPDATED_EVENT
+    DEVICE_UPDATED_EVENT,
+    DEVICE_DISCONNECTED_EVENT,
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -14,6 +15,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class MJYD2SSwitch(SwitchEntity):
     def __init__(self, instance, config_entry):
         self._instance = instance
+        self._attr_assumed_state = True
         self._attr_name =  config_entry.data["name"]
         self._attr_unique_id = f"{config_entry.entry_id}_switch"
         self._attr_is_on = False
@@ -26,6 +28,7 @@ class MJYD2SSwitch(SwitchEntity):
         )
 
         instance.eventbus.add_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        instance.eventbus.add_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
 
     @property
     def name(self):
@@ -36,16 +39,26 @@ class MJYD2SSwitch(SwitchEntity):
         return self._attr_is_on
 
     async def async_turn_on(self, **kwargs):
-        await self._instance.turn_on(refresh_configuration=True)
+        self._attr_is_on = True
+        self._attr_assumed_state = True
         self.async_write_ha_state()
+        await self._instance.turn_on(refresh_configuration=True)
 
     async def async_turn_off(self, **kwargs):
+        self._attr_is_on = False
+        self._attr_assumed_state = True
+        self.async_write_ha_state()
         await self._instance.turn_off(refresh_configuration=True)
+
+    async def device_disconnected(self, device):
+        self._attr_assumed_state = True
         self.async_write_ha_state()
 
     async def config_updated(self, configuration):
         self._attr_is_on = configuration.is_enabled
+        self._attr_assumed_state = False
         self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self):
         self._instance.eventbus.remove_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)

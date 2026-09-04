@@ -3,7 +3,8 @@ from homeassistant.const import CONF_MAC
 from homeassistant.helpers.device_registry import DeviceInfo, CONNECTION_BLUETOOTH
 from .const import (
     DOMAIN,
-    DEVICE_UPDATED_EVENT
+    DEVICE_UPDATED_EVENT,
+    DEVICE_DISCONNECTED_EVENT,
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -36,12 +37,17 @@ class MJYD2SSelect(SelectEntity):
         )
 
         instance.eventbus.add_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        instance.eventbus.add_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
 
     @property
     def name(self):
         return self._attr_name
 
     async def async_select_option(self, option: str) -> None:
+        self._attr_current_option = option
+        self._attr_assumed_state = True
+        self.async_write_ha_state()
+
         if option == "pitch_black":
             await self._instance.set_ambient_limit(0)
         elif option == "dark":
@@ -53,7 +59,8 @@ class MJYD2SSelect(SelectEntity):
         elif option == "bright":
             await self._instance.set_ambient_limit(100)
 
-        self._attr_current_option = option
+    async def device_disconnected(self, device):
+        self._attr_assumed_state = True
         self.async_write_ha_state()
 
     async def config_updated(self, configuration):
@@ -67,7 +74,9 @@ class MJYD2SSelect(SelectEntity):
             self._attr_current_option = "slightly_lit"
         elif configuration.ambient_limit >= 100:
             self._attr_current_option = "bright"
+        self._attr_assumed_state = False
         self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self):
         self._instance.eventbus.remove_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)

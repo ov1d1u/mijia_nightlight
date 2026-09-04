@@ -3,7 +3,8 @@ from homeassistant.const import UnitOfTime, PERCENTAGE, CONF_MAC
 from homeassistant.helpers.device_registry import DeviceInfo, CONNECTION_BLUETOOTH
 from .const import (
     DOMAIN,
-    DEVICE_UPDATED_EVENT
+    DEVICE_UPDATED_EVENT,
+    DEVICE_DISCONNECTED_EVENT,
 )
 
 NUMBER_KIND_BRIGHTNESS = "brightness"
@@ -20,6 +21,7 @@ class MJYD2SNumber(NumberEntity):
     def __init__(self, instance, config_entry, kind):
         self._instance = instance
         self._kind = kind
+        self._attr_assumed_state = True
         self._attr_name = f"{config_entry.data['name']} {kind.title()}"
         self._attr_unique_id = f"{config_entry.entry_id}_{kind}"
         self._attr_device_info = DeviceInfo(
@@ -43,6 +45,7 @@ class MJYD2SNumber(NumberEntity):
             self._attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
         instance.eventbus.add_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        instance.eventbus.add_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
 
     @property
     def name(self):
@@ -51,12 +54,17 @@ class MJYD2SNumber(NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
         value = int(value)
+        self._attr_native_value = value
+        self._attr_assumed_state = True
+        self.async_write_ha_state()
+
         if self._kind == NUMBER_KIND_BRIGHTNESS:
             await self._instance.set_brightness(value)
         elif self._kind == NUMBER_KIND_DURATION:
             await self._instance.set_duration(value)
 
-        self._attr_native_value = value
+    async def device_disconnected(self, device):
+        self._attr_assumed_state = True
         self.async_write_ha_state()
 
     async def config_updated(self, configuration):
@@ -64,7 +72,9 @@ class MJYD2SNumber(NumberEntity):
             self._attr_native_value = configuration.brightness
         elif self._kind == NUMBER_KIND_DURATION:
             self._attr_native_value = configuration.duration
+        self._attr_assumed_state = False
         self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self):
         self._instance.eventbus.remove_listener(DEVICE_UPDATED_EVENT, self.config_updated)
+        self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
