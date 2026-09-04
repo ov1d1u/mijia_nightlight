@@ -23,7 +23,8 @@ from .queue import OutQueue
 from ..const import (
     DEVICE_CONNECTED_EVENT,
     DEVICE_DISCONNECTED_EVENT,
-    DEVICE_UPDATED_EVENT
+    DEVICE_UPDATED_EVENT,
+    OUTGOING_MESSAGES_UPDATED_EVENT,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -260,6 +261,10 @@ class MJYD2S:
             self.mi_random_key_recv is not None and \
             self.mi_random_key is not None
 
+    @property
+    def outgoing_messages_count(self):
+        return self._queue_out.qsize()
+
     async def _ensure_authenticated(self):
         if not self.is_connected or not self.is_authenticated:
             await self.connect()
@@ -276,6 +281,10 @@ class MJYD2S:
             await self._write_message(msg)
         else:
             await self._queue_out.put(msg)
+            self.eventbus.send(
+                OUTGOING_MESSAGES_UPDATED_EVENT,
+                self.outgoing_messages_count,
+            )
             LOGGER.debug(f"Not connected, put message on out queue (queue size: {self._queue_out.qsize()})")
 
     async def _write_message(self, msg):
@@ -324,6 +333,10 @@ class MJYD2S:
     async def _process_out_queue(self):
         while not self._queue_out.empty():
             msg = await self._queue_out.get()
+            self.eventbus.send(
+                OUTGOING_MESSAGES_UPDATED_EVENT,
+                self.outgoing_messages_count,
+            )
             await self._write_message(msg)
 
     async def _notification_handler(self, sender, data):

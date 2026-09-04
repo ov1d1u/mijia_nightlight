@@ -14,7 +14,13 @@ from .const import DOMAIN, CONF_MI_TOKEN
 
 LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.NUMBER, Platform.BINARY_SENSOR, Platform.SELECT]
+PLATFORMS: list[Platform] = [
+    Platform.SWITCH,
+    Platform.NUMBER,
+    Platform.BINARY_SENSOR,
+    Platform.SELECT,
+    Platform.SENSOR,
+]
 
 _LEGACY_PERSIST_STATE = "persist_state"
 

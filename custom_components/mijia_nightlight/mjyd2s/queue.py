@@ -22,7 +22,7 @@ class OutQueue():
                     return item
 
     def qsize(self):
-        return self._queue.qsize()
+        return len(self._items_by_class)
 
     def empty(self):
-        return self._queue.empty()
+        return not self._items_by_class
