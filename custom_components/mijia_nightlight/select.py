@@ -3,9 +3,7 @@ from homeassistant.const import CONF_MAC
 from homeassistant.helpers.device_registry import DeviceInfo, CONNECTION_BLUETOOTH
 from .const import (
     DOMAIN,
-    CONF_PERSIST_STATE,
-    DEVICE_UPDATED_EVENT,
-    DEVICE_DISCONNECTED_EVENT
+    DEVICE_UPDATED_EVENT
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -37,10 +35,7 @@ class MJYD2SSelect(SelectEntity):
             model="MJYD2S",
         )
 
-        self.persist_state = config_entry.data[CONF_PERSIST_STATE]
-
         instance.eventbus.add_listener(DEVICE_UPDATED_EVENT, self.config_updated)
-        instance.eventbus.add_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)
 
     @property
     def name(self):
@@ -74,13 +69,5 @@ class MJYD2SSelect(SelectEntity):
             self._attr_current_option = "bright"
         self.async_write_ha_state()
 
-    async def device_disconnected(self, device):
-        if self.persist_state:
-            return
-
-        self._attr_current_option = None
-        self.async_write_ha_state()
-
     async def async_will_remove_from_hass(self):
         self._instance.eventbus.remove_listener(DEVICE_UPDATED_EVENT, self.config_updated)
-        self._instance.eventbus.remove_listener(DEVICE_DISCONNECTED_EVENT, self.device_disconnected)

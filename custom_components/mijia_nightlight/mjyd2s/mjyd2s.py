@@ -40,11 +40,10 @@ DISCONNECT_DELAY = 60.0
 
 
 class MJYD2S:
-    def __init__(self, hass, mac, mi_token, use_out_queue=False):
+    def __init__(self, hass, mac, mi_token):
         self.hass = hass
         self.mac = mac
         self.mi_token = mi_token
-        self.use_out_queue = use_out_queue
         self.client = None
         self.eventbus = EventBus()
         self._queue_in = asyncio.Queue()
@@ -275,7 +274,7 @@ class MJYD2S:
     async def _send_message(self, msg):
         if self.is_connected and self.is_authenticated:
             await self._write_message(msg)
-        elif self.use_out_queue:
+        else:
             await self._queue_out.put(msg)
             LOGGER.debug(f"Not connected, put message on out queue (queue size: {self._queue_out.qsize()})")
 
@@ -404,4 +403,3 @@ class MJYD2S:
         nonce[8:10] = msg_count.to_bytes(2, byteorder='little')
         nonce[10:12] = [0, 0]
         return bytes(nonce)
-

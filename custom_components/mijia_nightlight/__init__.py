@@ -10,20 +10,39 @@ from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth.match import ADDRESS, BluetoothCallbackMatcher
 
 from .mjyd2s import MJYD2S
-from .const import DOMAIN, CONF_MI_TOKEN, CONF_PERSIST_STATE
+from .const import DOMAIN, CONF_MI_TOKEN
 
 LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.NUMBER, Platform.BINARY_SENSOR, Platform.SELECT]
+
+_LEGACY_PERSIST_STATE = "persist_state"
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Remove the legacy state persistence option from a config entry."""
+    if entry.version == 1:
+        data = dict(entry.data)
+        options = dict(entry.options)
+        data.pop(_LEGACY_PERSIST_STATE, None)
+        options.pop(_LEGACY_PERSIST_STATE, None)
+
+        hass.config_entries.async_update_entry(
+            entry,
+            data=data,
+            options=options,
+            version=2,
+        )
+
+    return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Xiaomi Motion Activated Night Light 2 from a config entry."""
 
     mac = entry.options.get(CONF_MAC, None) or entry.data.get(CONF_MAC, None)
     mi_token = entry.options.get(CONF_MI_TOKEN, None) or entry.data.get(CONF_MI_TOKEN, None)
-    persist_state = entry.options.get(CONF_PERSIST_STATE) if CONF_PERSIST_STATE in entry.options else entry.data.get(CONF_PERSIST_STATE, False)
 
-    instance = MJYD2S(hass, mac, mi_token, persist_state)
+    instance = MJYD2S(hass, mac, mi_token)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = instance
 
     async def _connect_and_process_queue():
